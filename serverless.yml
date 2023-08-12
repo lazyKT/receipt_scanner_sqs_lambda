@@ -1,0 +1,75 @@
+org: ktlwin
+app: receipt-scanner-sqs-lambda
+service: receipt-scanner-sqs-lambda
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: python3.10
+  region: ap-southeast-1
+
+  iamRoleStatements:
+    - Effect: "Allow"
+      Action:
+        - "sqs:SendMessage"
+      Resource: "arn:aws:sqs:ap-southeast-1:937234528489:FIFOQueue.fifo"
+    - Effect: "Allow"
+      Action:
+        - "dynamodb:*"
+      Resource: "arn:aws:dynamodb:ap-southeast-1:*:*"
+
+layers:
+  OCR:
+    path: layer/amazonlinux-2
+    name: ocr-layer
+    description: Tesseract Layer
+    compatibleRuntimes:
+      - python3.10
+
+functions:
+  send_queue:
+    handler: handler.send_message_to_sqs_fifo
+    events:
+      - http:
+          method: post
+          path: scan_receipt
+  ocr:
+    handler: handler.handle_message_from_sqs_fifo
+    memorySize: 2048
+    timeout: 15
+    layers:
+      - arn:aws:lambda:ap-southeast-1:770693421928:layer:Klayers-p310-Pillow:3
+      - {Ref: OCRLambdaLayer}
+    events:
+      - sqs:
+          arn:
+            Fn::GetAtt:
+              - FIFOQueue
+              - Arn
+
+resources:
+  Resources:
+    FIFOQueue:
+      Type: "AWS::SQS::Queue"
+      Properties:
+        QueueName: "FIFOQueue.fifo"
+        FifoQueue: True
+        ContentBasedDeduplication: True
+        VisibilityTimeout: 90
+        FifoThroughputLimit: "perMessageGroupId"
+        DeduplicationScope: "messageGroup"
+    queueStatusTable:
+      Type: "AWS::DynamoDB::Table"
+      Properties:
+        TableName: "queueStatusTable"
+        AttributeDefinitions:
+          - AttributeName: messageId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: messageId
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+
