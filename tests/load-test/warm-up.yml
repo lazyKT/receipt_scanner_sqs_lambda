@@ -5,6 +5,10 @@ config:
       arrivalRate: 1
       rampTo: 5
       name: Warm up phase
+    - duration: 30
+      arrivalRate: 40
+      rampTo: 60
+      name: Spike phase
 
 scenarios:
   - flow:
