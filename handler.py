@@ -82,27 +82,38 @@ def handle_message_from_sqs_fifo(event, context):
         message_events = event['Records']
         processed_data = list()
         for message in message_events:
-            image = BytesIO(b64decode(message['body']))
             db = boto3.client('dynamodb')
-            res = db.get_item(
-                TableName='queueStatusTable',
-                Key={
-                    'messageId': {'S': message['messageId']}
-                }
-            )
-            item = res['Item'] if res['Item'] is not None else None
-            if item is not None and dynamodb_to_dict(item)['status'] == 'PROCESSING':
-                result = pytesseract.image_to_string(Image.open(image))
-                data = process(result)
+            try:
+                image = BytesIO(b64decode(message['body']))
+                res = db.get_item(
+                    TableName='queueStatusTable',
+                    Key={
+                        'messageId': {'S': message['messageId']}
+                    }
+                )
+                item = res['Item'] if res['Item'] is not None else None
+                if item is not None and dynamodb_to_dict(item)['status'] == 'PROCESSING':
+                    result = pytesseract.image_to_string(Image.open(image))
+                    data = process(result)
+                    db.put_item(
+                        TableName='queueStatusTable',
+                        Item={
+                            "messageId": {"S": message["messageId"]},
+                            "status": {"S": "DONE"},
+                            "data": {"S": json.dumps(data)}
+                        }
+                    )
+                    processed_data.append(data)
+            except Exception as e:
                 db.put_item(
                     TableName='queueStatusTable',
                     Item={
                         "messageId": {"S": message["messageId"]},
-                        "status": {"S": "DONE"},
-                        "data": {"S": json.dumps(data)}
+                        "status": {"S": "FAIL"},
+                        "error": {"S": json.dumps(str(e)}
                     }
                 )
-                processed_data.append(data)
+                raise e
         print('processed_data', processed_data)
         return {"statusCode": 200, "body": json.dumps({"data": processed_data})}
     except Exception as e:
