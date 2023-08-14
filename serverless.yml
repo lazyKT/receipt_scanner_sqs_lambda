@@ -11,7 +11,11 @@ provider:
   websocketsApiName: tesseract-ws
   websocketsApiRouteSelectionExpression: $request.body.action
   websocketsDescription: Web-socket connection to check scanned receipt data
-
+  httpApi:
+    authorizers:
+      ocrAuthorizer:
+        type: request
+        functionName: ocrAuthorizer
   iamRoleStatements:
     - Effect: "Allow"
       Action:
@@ -31,12 +35,16 @@ layers:
       - python3.10
 
 functions:
+  ocrAuthorizer:
+    handler: auth_handler.authorizer
   send_queue:
     handler: handler.send_message_to_sqs_fifo
     events:
-      - http:
+      - httpApi:
           method: post
-          path: scanReceipt
+          path: "/scanReceipt"
+          authorizer:
+            name: ocrAuthorizer
   ocr:
     handler: handler.handle_message_from_sqs_fifo
     memorySize: 2048
