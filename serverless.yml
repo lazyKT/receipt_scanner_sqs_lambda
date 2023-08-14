@@ -8,6 +8,9 @@ provider:
   name: aws
   runtime: python3.10
   region: ap-southeast-1
+  websocketsApiName: tesseract-ws
+  websocketsApiRouteSelectionExpression: $request.body.action
+  websocketsDescription: Web-socket connection to check scanned receipt data
 
   iamRoleStatements:
     - Effect: "Allow"
@@ -33,7 +36,7 @@ functions:
     events:
       - http:
           method: post
-          path: scan_receipt
+          path: scanReceipt
   ocr:
     handler: handler.handle_message_from_sqs_fifo
     memorySize: 2048
@@ -47,6 +50,22 @@ functions:
             Fn::GetAtt:
               - FIFOQueue
               - Arn
+  connectionManager:
+    handler: ws_handler.connection_manager
+    events:
+      - websocket:
+          route: $connect
+      - websocket:
+          route: $disconnect
+  defaultMessage:
+    handler: ws_handler.default_handler
+    events:
+      - websocket: $default
+  sendMessage:
+    handler: ws_handler.send_message
+    events:
+      - websocket:
+          route: sendMessage
 
 resources:
   Resources:
@@ -73,3 +92,5 @@ resources:
           ReadCapacityUnits: 1
           WriteCapacityUnits: 1
 
+plugins:
+  - serverless-python-requirements

@@ -110,7 +110,7 @@ def handle_message_from_sqs_fifo(event, context):
                     Item={
                         "messageId": {"S": message["messageId"]},
                         "status": {"S": "FAIL"},
-                        "error": {"S": json.dumps(str(e)}
+                        "error": {"S": json.dumps(str(e)) }
                     }
                 )
                 raise e
